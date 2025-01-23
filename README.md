@@ -7,7 +7,7 @@ To install:
 ```smalltalk
 Metacello new
         baseline: 'ClientServerPrototype';
-        repository: 'github://tesonep/toploPrototype:main/src';
+        repository: 'github://LANDAISB/toploPrototype:useCaseClientRequest/src';
 		  onConflictUseLoaded;
         load.
 ```
