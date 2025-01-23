@@ -3,7 +3,8 @@ Class {
 	#superclass : 'CSPAbstractWindow',
 	#instVars : [
 		'useCompositionLayer',
-		'hasSpinner'
+		'hasSpinner',
+		'nbChildElements'
 	],
 	#category : 'ClientServerPrototype',
 	#package : 'ClientServerPrototype'
@@ -101,7 +102,7 @@ CSPClientWindow >> createComplexElement [
 		c vertical matchParent.
 		c horizontal matchParent ].
 
-	300 timesRepeat: [
+	self nbChildElements timesRepeat: [
 		content addChild: (self createChildElement) ].
 
 	container addChild: content as: #content.
@@ -117,7 +118,8 @@ CSPClientWindow >> createControls [
 		vFitContent;
 		hMatchParent;
 		addChild: (self addTextInput: #fpsText withLabel: 'FPS:');
-		addChild: (self addCheckbox: #hasSpinnerCheckbox withLabel: 'Has Spinner Layover?');
+		addChild: (self addTextInput: #nbChildsText withLabel: 'Nb. blocs:');
+		addChild: (self addCheckbox: #hasSpinnerCheckbox withLabel: 'Send client request to server (with waiting animation)');
 		addChild: (self addCheckbox: #useCompositionLaterCheckbox withLabel: 'Use Composition Layers?');
 		
 		yourself
@@ -127,7 +129,7 @@ CSPClientWindow >> createControls [
 CSPClientWindow >> doAddOrRemoveSpinner [
 
 	hasSpinner 
-		ifTrue: [ self doAddSpinner ]
+		ifTrue: [ self doAddSpinner. self doSendClientMessage ]
 		ifFalse: [ self doRemoveSpinner ]
 
 ]
@@ -135,7 +137,7 @@ CSPClientWindow >> doAddOrRemoveSpinner [
 { #category : 'operations' }
 CSPClientWindow >> doAddSpinner [
 
-	| transparent spinner |
+	| transparent spinner infiniteAnimation|
 	
 	self layoverSpinner ifNotNil: [ ^ self ].
 	
@@ -147,12 +149,23 @@ CSPClientWindow >> doAddSpinner [
 	spinner width: 50.
 	spinner background: Color blue.
 	
-	spinner addAnimation: ((BlTransformAnimation rotate: 180)
-		              duration: 0.5 seconds;
+	
+	infiniteAnimation := BlNumberTransition new
+                   duration: 5000 milliSeconds;
+                   from: 0;
+                   to: 60;
+                   onStepDo: [ :number :anElement | 
+							anElement transformDo: [:t | t centerOrigin. t rotateBy: (6*number) ]  
+						];
+						beInfinite.
+	
+	spinner addAnimation: infiniteAnimation.
+	"spinner addAnimation: ((BlTransformAnimation rotate: 180)
+		              duration: 2 seconds;
 		              easing: BlLinearInterpolator new;
 		              target: spinner;
 						  beInfinite;
-		              yourself ).
+		              yourself )."
 		
 	
 	transparent := BlElement new.
@@ -196,10 +209,18 @@ CSPClientWindow >> doReset [
 ]
 
 { #category : 'operations' }
+CSPClientWindow >> doSendClientMessage [
+	
+	[ self client sendClientMessage ] forkAt: 10
+]
+
+{ #category : 'operations' }
 CSPClientWindow >> doStart [
 
 	self client start.
 	self client whenMessageReceivedDo: [
+		Transcript show: 'message received on client';cr.
+		self hasSpinnerCheckbox uncheck.
 		self space ifNotNil: [ :space |
 			space universe defer: [ self updateData ] ] ].
 	self updateData
@@ -231,6 +252,20 @@ CSPClientWindow >> hasSpinnerCheckbox [
 	^ self childWithId: #hasSpinnerCheckbox
 ]
 
+{ #category : 'initialization' }
+CSPClientWindow >> initForClientRequestUseCase [
+
+	self nbChildsText text: (self nbChildElements) printString asRopedText.
+	self clientUrl disabled: true.
+	self clientDelay disabled: true.
+	self startButton disabled: true.
+	self stopButton disabled: true.
+	self resetButton disabled: true.
+	
+	self doStart
+
+]
+
 { #category : 'accessing' }
 CSPClientWindow >> initialExtent [.
 
@@ -251,6 +286,7 @@ CSPClientWindow >> initialize [
 	self addChild: (self createComplexElement) as: #container.
 	
 	self fpsText disabled: true.
+	self initForClientRequestUseCase.
 	self registerEvents.
 
 	self doAddOrRemoveSpinner.
@@ -263,6 +299,25 @@ CSPClientWindow >> initialize [
 CSPClientWindow >> layoverSpinner [
 
 	^ self childWithId: #layoverSpinner ifNone: [ nil ]
+]
+
+{ #category : 'accessing' }
+CSPClientWindow >> nbChildElements [
+
+	nbChildElements ifNil:[nbChildElements := 300].
+	^nbChildElements
+]
+
+{ #category : 'accessing' }
+CSPClientWindow >> nbChildElements: aNumber [
+
+	nbChildElements := aNumber
+]
+
+{ #category : 'accessing' }
+CSPClientWindow >> nbChildsText [
+
+	^ self childWithId: #nbChildsText
 ]
 
 { #category : 'instance creation' }
@@ -293,10 +348,22 @@ CSPClientWindow >> registerEvents [
 	
 	self clientUrl whenSaveRequestedDo: [ :req | self updateClientUrl: req ].
 	self clientDelay whenSaveRequestedDo: [ :req | self updateClientDelay: req ].
+	self nbChildsText whenSaveRequestedDo: [ :req | self updateChildElements: req ].
 
 	self stopButton whenClickedDo: [ self doStop ].
 	self startButton whenClickedDo: [ self doStart ].	
 	self resetButton whenClickedDo: [ self doReset ]
+]
+
+{ #category : 'private - updating' }
+CSPClientWindow >> updateChildElements: request [
+
+	| text |
+	text := self nbChildsText text asString.
+	text isEmpty ifTrue:[ text := '1'].
+	self nbChildElements: text asNumber.
+	self updateComplexElement
+		
 ]
 
 { #category : 'private - updating' }
@@ -326,10 +393,31 @@ CSPClientWindow >> updateClientUrl: request [
 ]
 
 { #category : 'private - updating' }
+CSPClientWindow >> updateComplexElement [
+
+	| content |
+	self container removeChildWithId: #content.
+
+	content := BlElement new.
+	content layout: (BlGridLayout new columnCount: 16).
+	content layout cellSpacing: 3.
+	content constraintsDo: [ :c |
+		c vertical matchParent.
+		c horizontal matchParent ].
+
+	self nbChildElements timesRepeat: [
+		content addChild: (self createChildElement) ].
+
+	self container addChild: content as: #content.
+
+
+]
+
+{ #category : 'private - updating' }
 CSPClientWindow >> updateData [
 	
 	self clientUrl text: (self client url) printString asRopedText.
-	self clientUrl disabled: (self client isRunning).
+	"self clientUrl disabled: (self client isRunning)."
 
 	((self clientUrl text asString ~= (self client delay) printString) and: [ self clientDelay edited not])
 		ifTrue: [ self clientDelay text: (self client delay) printString asRopedText].	
@@ -338,8 +426,8 @@ CSPClientWindow >> updateData [
 		text: (self client messagesReceived) printString asRopedText;
 		enabled: false.
 		
-	self startButton disabled: (self client isRunning).
-	self stopButton disabled: (self client isRunning) not.	
+	"self startButton disabled: (self client isRunning).
+	self stopButton disabled: (self client isRunning) not.	"
 ]
 
 { #category : 'accessing' }

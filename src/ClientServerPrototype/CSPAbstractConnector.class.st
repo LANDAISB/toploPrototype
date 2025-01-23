@@ -49,6 +49,8 @@ CSPAbstractConnector >> delay: aValue [
 CSPAbstractConnector >> initialize [
 
 	super initialize.
+	
+	ZMQConstants  initConstants.
 	url := 'tcp://127.0.0.1:31001' asZnUrl.
 	delay := 500 milliSeconds.
 	

@@ -32,6 +32,7 @@ CSPServerWindow >> doStart [
 	
 	self server start.
 	self server whenMessageSendDo: [ self space ifNotNil:[ :space | space universe defer: [self updateData] ]].
+	self server whenMessageReceivedDo: [ self server sendServerMessage ].
 	self updateData.
 ]
 
@@ -49,6 +50,19 @@ CSPServerWindow >> ensureStopped [
 	self server stop
 ]
 
+{ #category : 'initialization' }
+CSPServerWindow >> initForClientRequestUseCase [
+
+	self serverUrl disabled: true.
+	self serverDelay disabled: true.
+	self startButton disabled: true.
+	self stopButton disabled: true.
+	self resetButton disabled: true.
+	
+	self doStart
+	
+]
+
 { #category : 'accessing' }
 CSPServerWindow >> initialExtent [
 
@@ -62,6 +76,7 @@ CSPServerWindow >> initialize [
 
 	self addChild: (self createServerInfo).
 	self addChild: (self createButtons).
+	self initForClientRequestUseCase.
 	
 	self registerEvents.		
 	self updateData.
@@ -100,7 +115,7 @@ CSPServerWindow >> serverUrl [
 CSPServerWindow >> updateData [
 	
 	self serverUrl text: (self server url) printString asRopedText.
-	self serverUrl disabled: (self server isRunning).
+	"self serverUrl disabled: (self server isRunning)."
 
 	((self serverDelay text asString ~= (self server delay) printString) and: [ self serverDelay edited not])
 		ifTrue: [ self serverDelay text: (self server delay) printString asRopedText].	
@@ -109,8 +124,8 @@ CSPServerWindow >> updateData [
 		text: (self server messagesSent) printString asRopedText;
 		enabled: false.
 		
-	self startButton disabled: (self server isRunning).
-	self stopButton disabled: (self server isRunning) not.	
+	"self startButton disabled: (self server isRunning).
+	self stopButton disabled: (self server isRunning) not.	"
 ]
 
 { #category : 'private - updating' }

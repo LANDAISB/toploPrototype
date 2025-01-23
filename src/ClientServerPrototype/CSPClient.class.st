@@ -3,7 +3,8 @@ Class {
 	#superclass : 'CSPAbstractConnector',
 	#instVars : [
 		'whenMessageReceivedDo',
-		'messagesReceived'
+		'messagesReceived',
+		'zmqSocketP'
 	],
 	#pools : [
 		'ZMQConstants'
@@ -22,16 +23,16 @@ CSPClient >> doStep [
 	[
 		msg := (zmqSocket receiveMsgDontWait) first.
 		currentReceived := currentReceived + 1.
-		currentReceived = 1000 or: [msg isEmpty]] whileFalse.
+		msg isEmpty ifFalse:[ whenMessageReceivedDo value. messagesReceived := messagesReceived + 1].
+		currentReceived = 1000 or: [msg isEmpty]] whileFalse
 
-	messagesReceived := messagesReceived + currentReceived - 1.
-	whenMessageReceivedDo value.
 ]
 
 { #category : 'initialization' }
 CSPClient >> initialize [
 
 	super initialize.
+
 	whenMessageReceivedDo := [].
 	messagesReceived := 0.
 ]
@@ -48,10 +49,17 @@ CSPClient >> messagesReceived: anObject [
 	messagesReceived := anObject
 ]
 
+{ #category : 'api - running' }
+CSPClient >> sendClientMessage [
+
+	Transcript show: 'sendClientMessage'; cr.
+	zmqSocketP send: 'test 1234'.
+]
+
 { #category : 'initialization' }
 CSPClient >> start [
 
-	| urlString |
+	| urlString urlStringS|
 	self isRunning ifTrue: [ ^ self ].
 
 	urlString := self url asString.
@@ -60,12 +68,17 @@ CSPClient >> start [
 	zmqSocket := ZMQSocket new: ZMQ_SUB.
 	zmqSocket connect: urlString.
 	zmqSocket optionKey: 6 "ZMQ_SUBSCRIBE" optValue: 'test'.
+	
+	urlStringS := urlString allButLast.
+	urlStringS := urlStringS, '2'.
+	zmqSocketP := ZMQSocket new: ZMQ_PUB.
+	zmqSocketP connect: urlStringS.
 
 	service := TKTParameterizableService new
 		name: 'CSPClient';
 		step: [self doStep];
 		stepDelay: delay;
-		priority: Processor lowIOPriority;
+		priority: 40;
 		start;
 		yourself.
 
